@@ -1,3 +1,11 @@
+#
+Ths is forked from https://github.com/tkzilla/rsa_api_python_36
+As a first step, I just modified rsa_api_full_example to accept several argument
+
+To acquire data take a look at the docstring for rsa306B_stream_iq.py
+
+
+Below is the original readme from
 # rsa_api_python_36
 
 The RSA_API allows anyone to write scripts, lightweight applications, or plugins that directly control and acquire data from Tektronix USB RSAs without needing to run SignalVu-PC.

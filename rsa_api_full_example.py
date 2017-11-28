@@ -1,4 +1,23 @@
 """
+
+Stream IQ data to file at several center frequency values.
+
+Syntax
+>>python rsa_api_full_example.py <acquisition_time> <center_frequency_list> <ref_level> <bandwidth> <save_path>
+
+acquisition_time - acquisition time in milliseconds at each center frequency
+center_frequency_list - comma separated list of center frequency values in units of Hz
+ref_level - reference level in db
+bandwidth - bandwidth in units of Hz; max value is 40e6 for the RSA306B
+save_path - save path
+
+Example usage:
+>>python rsa_api_full_example.py 75000 2.42e9, -20 40e6 C:\Users\jkwong\Documents\data\tek_python\20171115
+
+
+
+OLD readme
+
 Tektronix RSA_API Example
 Author: Morgan Allison
 Date created: 6/15
@@ -23,11 +42,20 @@ import numpy as np
 import matplotlib.pyplot as plt
 from RSA_API import *
 
+import ast, sys, datetime, time, os
 
 # C:\Tektronix\RSA_API\lib\x64 needs to be added to the
 # PATH system environment variable
-chdir("C:\\Tektronix\\RSA_API\\lib\\x64")
-rsa = cdll.LoadLibrary("RSA_API.dll")
+# chdir("C:\\Tektronix\\RSA_API\\lib\\x64")
+# rsa = cdll.LoadLibrary("RSA_API.dll")
+
+# rsa = cdll.LoadLibrary(os.path.join("C:\\Tektronix\\RSA_API\\lib\\x64", "RSA_API.dll"))
+
+dir_path = os.path.dirname(os.path.realpath(__file__))
+dll_fullfilename = os.path.join(dir_path, "RSA_API.dll")
+print(os.path.exists(dll_fullfilename))
+rsa = cdll.LoadLibrary(dll_fullfilename)
+
 
 
 """################CLASSES AND FUNCTIONS################"""
@@ -389,7 +417,11 @@ def config_iq_stream(cf=1e9, refLevel=0, bw=10e6, fileDir='C:\\SignalVu-PC Files
                      suffixCtl=IQSSDFN_SUFFIX_NONE,
                      dType=IQSOUTDTYPE.IQSODT_INT16,
                      durationMsec=100):
-    filenameBase = fileDir + '\\' + fileName
+
+    # filenameBase = fileDir + '\\' + fileName
+    filenameBase = os.path.join(fileDir, fileName)
+    print(filenameBase)
+
     bwActual = c_double(0)
     sampleRate = c_double(0)
     rsa.CONFIG_SetCenterFreq(c_double(cf))
@@ -450,6 +482,44 @@ def iq_stream_example():
     rsa.DEVICE_Stop()
     rsa.DEVICE_Disconnect()
 
+def iq_stream_time_limit(duration = 1e-3, center_frequency = 2.4e9, refLevel = -40, bandwidth = 40e6, save_path = '.'):
+    """
+        Streams IQ data to file for particular duration, at a particular frequency, reference level and bandwidth.
+
+    """
+
+    print('\n\n########IQ Stream Example########')
+    search_connect()
+    t_start = time.time()
+    timestamp_string = datetime.datetime.fromtimestamp(t_start).strftime('%Y%m%d_%H%M%S')
+
+    IQSOUTDEST.IQSOD_FILE_SIQ_SPLIT
+    dest = IQSOUTDEST.IQSOD_FILE_SIQ_SPLIT
+    waitTime = 0.1
+    iqStreamInfo = IQSTREAM_File_Info()
+
+    complete = c_bool(False)
+    writing = c_bool(False)
+
+    # config_iq_stream(bw=bw, dest=dest, durationMsec=durationMsec)
+
+    # filename_without_extension = 'iq_stream__%s' %timestamp_string
+    filename_without_extension = 'iq_stream__'
+
+    config_iq_stream(cf=center_frequency, refLevel=refLevel, bw=bandwidth, fileDir=save_path, fileName=filename_without_extension,
+                     dest=dest, suffixCtl=IQSSDFN_SUFFIX_TIMESTAMP,dType=IQSOUTDTYPE.IQSODT_INT16,
+                     durationMsec=duration)
+    rsa.DEVICE_Run()
+    rsa.IQSTREAM_Start()
+    while not complete.value:
+        sleep(waitTime)
+        rsa.IQSTREAM_GetDiskFileWriteStatus(byref(complete), byref(writing))
+    rsa.IQSTREAM_Stop()
+    print('Streaming finished.')
+    rsa.IQSTREAM_GetFileInfo(byref(iqStreamInfo))
+    iqstream_status_parser(iqStreamInfo)
+    rsa.DEVICE_Stop()
+    rsa.DEVICE_Disconnect()
 
 """################MISC################"""
 def config_trigger(trigMode=TriggerMode.triggered, trigLevel=-10,
@@ -466,14 +536,32 @@ def peak_power_detector(freq, trace):
 
     return peakPower, peakFreq
 
+# def main(time_limit, center_frequency, ref_level, bandwidth, save_path):
+#
+#     # uncomment the example you'd like to run
+#     # spectrum_example()
+#     # block_iq_example()
+#     # dpx_example()
+#     # if_stream_example()
+#     iq_stream_time_limit(duration=time_limit,center_frequency=center_frequency,refLevel=ref_level,bandwidth=bandwidth,save_path=save_path)
 
-def main():
+def main(time_limit, center_frequency_list, ref_level, bandwidth, save_path):
+
     # uncomment the example you'd like to run
-    spectrum_example()
+    # spectrum_example()
     # block_iq_example()
     # dpx_example()
     # if_stream_example()
-    # iq_stream_example()
+    for center_frequency_index, center_frequency in enumerate(center_frequency_list):
+        print('{}, f_center = {}'.format(center_frequency_index, center_frequency))
+        iq_stream_time_limit(duration=time_limit,center_frequency=center_frequency,refLevel=ref_level,bandwidth=bandwidth,save_path=save_path)
 
 if __name__ == '__main__':
-    main()
+
+    time_limit = int(ast.literal_eval(sys.argv[1]))
+    center_frequency_list = ast.literal_eval(sys.argv[2])
+    ref_level = ast.literal_eval(sys.argv[3])
+    bandwidth = ast.literal_eval(sys.argv[4])
+    save_path = sys.argv[5]
+
+    main(time_limit,center_frequency_list,ref_level,bandwidth,save_path)
